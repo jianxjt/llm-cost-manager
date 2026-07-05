@@ -1,0 +1,12 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Runtime data
+data/history.db
+data/report.md
+
+# OS
+.DS_Store
+Thumbs.db

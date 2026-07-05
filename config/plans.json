@@ -1,0 +1,21 @@
+{
+  "plans": {
+    "afp_medium": {
+      "provider": "ark",
+      "name": "Agent Plan Medium",
+      "price_cny": 200,
+      "limits": {
+        "monthly_afp": 100000,
+        "weekly_afp": 35000,
+        "hourly_5_afp": 10000
+      },
+      "start_date": "2026-06-01",
+      "end_date": "2026-06-30",
+      "auto_renew": true
+    }
+  },
+  "alert_thresholds": {
+    "warning_pct": 80,
+    "critical_pct": 90
+  }
+}

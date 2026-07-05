@@ -1,0 +1,30 @@
+{
+  "providers": {
+    "bailian": {
+      "type": "pay_as_you_go",
+      "last_verified": "2026-06-29",
+      "source_url": "https://help.aliyun.com/zh/model-studio/getting-started/models",
+      "models": {
+        "qwen3.5-flash": {"input_per_mtok": 0.20, "output_per_mtok": 2.00, "cache_read_per_mtok": 0.04},
+        "qwen3.5-plus":  {"input_per_mtok": 0.80, "output_per_mtok": 2.00, "cache_read_per_mtok": 0.08},
+        "deepseek-v4":   {"input_per_mtok": 1.00, "output_per_mtok": 4.00, "cache_read_per_mtok": 0.10},
+        "glm-5.2":       {"input_per_mtok": 1.00, "output_per_mtok": 1.00, "cache_read_per_mtok": 0.10}
+      }
+    },
+    "ark": {
+      "type": "afp_plan",
+      "last_verified": "2026-06-29",
+      "source_url": "https://www.volcengine.com/docs/82379/2516283",
+      "models": {
+        "doubao-seed-2-0-mini": {"input_coef": 0.167, "output_coef": 0.25},
+        "deepseek-v4-flash":    {"input_coef": 0.335, "output_coef": 0.5},
+        "doubao-seed-2-0-pro":  {"input_coef": 1.675, "output_coef": 2.5}
+      },
+      "context_tier_rules": {
+        "0-32k":    {"multiplier": 0.67},
+        "32k-128k": {"multiplier": 1.0},
+        ">128k":    {"multiplier": 2.0}
+      }
+    }
+  }
+}

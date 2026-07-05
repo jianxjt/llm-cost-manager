@@ -1,0 +1,28 @@
+[
+  {
+    "timestamp": 1751200000000,
+    "role": "assistant",
+    "provider": "bailian",
+    "model": "qwen3.5-flash",
+    "usageTotals": {
+      "input": 100000,
+      "output": 5000,
+      "cacheRead": 50000,
+      "totalTokens": 155000,
+      "totalCost": 0.03
+    }
+  },
+  {
+    "timestamp": 1751200100000,
+    "role": "assistant",
+    "provider": "bailian",
+    "model": "deepseek-v4",
+    "usageTotals": {
+      "input": 200000,
+      "output": 10000,
+      "cacheRead": 0,
+      "totalTokens": 210000,
+      "totalCost": 0.24
+    }
+  }
+]

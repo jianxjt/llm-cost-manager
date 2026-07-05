@@ -1,0 +1,28 @@
+[
+  {
+    "timestamp": 1751200200000,
+    "role": "assistant",
+    "provider": "ark",
+    "model": "doubao-seed-2-0-mini",
+    "usageTotals": {
+      "input": 50000,
+      "output": 2000,
+      "cacheRead": 0,
+      "totalTokens": 52000,
+      "totalCost": 0
+    }
+  },
+  {
+    "timestamp": 1751200300000,
+    "role": "assistant",
+    "provider": "ark",
+    "model": "deepseek-v4-flash",
+    "usageTotals": {
+      "input": 30000,
+      "output": 1000,
+      "cacheRead": 10000,
+      "totalTokens": 41000,
+      "totalCost": 0
+    }
+  }
+]
