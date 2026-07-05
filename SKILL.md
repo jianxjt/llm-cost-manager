@@ -1,11 +1,14 @@
+---
+name: llm-cost-manager
+version: 1.0.1
+description: "一站式大模型调用成本管理工具，直连 OpenClaw 本地缓存，自主采集、自主计算、自主分析。支持按量后付费/AFP套餐/免费三种计费模式，覆盖阿里百炼、火山方舟、本地模型，提供增量采集、终端表格与Markdown报告输出。"
+metadata:
+  requires:
+    bins: ["python3"]
+  license: "MIT"
+  author: "天地红尘"
+---
 # LLM Cost Manager
-
-**Name**: llm-cost-manager
-**Version**: 1.0.1
-**Author**: 天地红尘
-**License**: MIT
-
-一站式大模型调用成本管理工具，直连 OpenClaw 本地缓存，自主采集、自主计算、自主分析。
 
 ## 🔰 触发场景
 
