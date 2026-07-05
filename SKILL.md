@@ -64,24 +64,38 @@ python bin/run.py config set-plan      # 更新AFP套餐配置（支持命令行
 - **pricing.json** — 各供应商官方定价快照（参考源）
 - **plans.json** — 用户套餐配置（AFP 限额等）
 
-## 🔧 AFP 套餐配置
+## 🔧 AFP 计费与套餐管理
 
-**生成报告前，Agent 必须先检查 plans.json 中的套餐配置是否有效：**
+### 计费规则
 
-1. 读取 `config/plans.json`，检查 `start_date`/`end_date` 是否覆盖当前月份，`monthly_afp` 是否大于 0
-2. 如果套餐已过期、缺失或用户首次使用，**主动询问用户**：
-   - "你的火山引擎 Agent Plan 套餐是什么档位？月度 AFP 额度是多少？"
-   - 如用户知道周度和5小时额度，一并询问；不知道则只更新月度
-3. 获取用户确认后，执行更新：
-   ```bash
-   python bin/run.py config set-plan --monthly <额度> --weekly <额度> --hourly5 <额度> --price <月费> --name "<套餐名>" --start-date YYYY-MM-01 --end-date YYYY-MM-30
-   ```
-4. 更新完成后再执行 `collect` 和 `report`
+AFP（Agent Function Point）是火山引擎 Agent Plan 套餐的计费单位。计费规则详见 `references/afp_rules.md`。
 
-**常见火山引擎 Agent Plan 套餐参考（以用户实际购买为准）：**
-- Starter: 约20000 AFP/月
-- Medium: 约100000 AFP/月
-- Pro: 约500000 AFP/月
+**Agent 首次使用时应先读取该文件了解计费方式。** 如果文件缺失或内容过时（验证日期超过3个月），搜索"火山引擎 Agent Plan AFP 计费规则"获取最新规则并更新该文件。
+
+### 套餐配置流程
+
+**生成报告前，Agent 按以下步骤确认套餐配置：**
+
+1. **读取本地配置**：检查 `config/plans.json`，确认 `start_date`/`end_date` 覆盖当前月份且 `monthly_afp` > 0
+2. **配置缺失或过期时**：
+   - 搜索"火山引擎 Agent Plan 套餐 额度 价格"获取当前可选套餐档位
+   - 向用户展示搜索到的套餐选项，询问购买的是哪个档位
+   - 用户确认后执行更新：
+     ```bash
+     python bin/run.py config set-plan --monthly <额度> --weekly <额度> --hourly5 <额度> --price <月费> --name "<套餐名>" --start-date YYYY-MM-01 --end-date YYYY-MM-30
+     ```
+   - 如用户不知道周度/5小时额度，只更新月度即可
+3. **更新完成后**执行 `collect` 和 `report`
+
+### 预警机制
+
+**生成报告后，Agent 检查套餐消耗并判断是否预警：**
+
+- 读取 `config/plans.json` 中的 `alert_thresholds`（默认 warning 80%, critical 90%）
+- 对照报告中的 AFP 套餐状态区块，判断是否触发预警：
+  - 消耗占比 ≥ warning_pct：提醒用户"AFP额度已使用 X%，注意控制用量"
+  - 消耗占比 ≥ critical_pct：紧急提醒"AFP额度即将耗尽（剩余 X%），建议升级套餐或减少调用"
+- 即使报告为 Markdown 格式，Agent 也应主动读取套餐状态并向用户汇报
 
 ## 💰 计费模式
 

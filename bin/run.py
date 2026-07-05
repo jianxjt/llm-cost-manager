@@ -75,6 +75,11 @@ def cmd_report(args):
         DB_PATH, MODELS_CONFIG, PLANS_CONFIG,
         since=since, agent=args.agent, fmt=args.format)
 
+    # 附加 arkcli AFP 实时数据
+    if getattr(args, 'with_arkcli', False):
+        from core.arkcli_provider import format_arkcli_report
+        report += "\n\n" + format_arkcli_report(since=since, db_path=DB_PATH)
+
     if args.format == 'markdown':
         out_path = os.path.join(DATA_DIR, 'report.md')
         with open(out_path, 'w', encoding='utf-8') as f:
@@ -145,6 +150,37 @@ def cmd_config(args):
         print(f"   {plan['name']}: 月{m}/周{w}/5h{h} AFP, ¥{plan['price_cny']}/月")
 
 
+def cmd_arkcli(args):
+    """Ark CLI 数据采集与报告"""
+    from core.arkcli_provider import collect_all, format_arkcli_report
+    ensure_dirs()
+
+    if args.action == 'collect':
+        start = args.start if args.start else None
+        end = args.end if args.end else None
+        results = collect_all(start_date=start, end_date=end, db_path=DB_PATH)
+
+        plan_status = results.get('plan', 'unknown')
+        details_status = results.get('details', 'unknown')
+
+        if plan_status == 'ok':
+            print("✅ 套餐 AFP 用量采集成功")
+        else:
+            print(f"❌ 套餐采集失败: {plan_status}")
+
+        if details_status.startswith('ok'):
+            print(f"✅ 分模型明细采集成功 ({details_status})")
+        else:
+            print(f"❌ 明细采集失败: {details_status}")
+
+    elif args.action == 'report':
+        since = args.since
+        if since:
+            since = f"{since} 00:00:00"
+        report = format_arkcli_report(since=since, db_path=DB_PATH)
+        print(report)
+
+
 def _load_json(path):
     with open(path, 'r', encoding='utf-8') as f:
         return json.load(f)
@@ -174,6 +210,8 @@ def main():
                           help='截止日期 YYYY-MM-DD')
     p_report.add_argument('--format', choices=['terminal', 'markdown'],
                           default='terminal', help='输出格式')
+    p_report.add_argument('--with-arkcli', action='store_true',
+                          help='附加 arkcli AFP 实时数据')
 
     # config
     p_config = subparsers.add_parser('config', help='配置管理')
@@ -187,6 +225,17 @@ def main():
     p_config.add_argument('--start-date', default=None, help='开始日期 YYYY-MM-DD')
     p_config.add_argument('--end-date', default=None, help='结束日期 YYYY-MM-DD')
 
+    # arkcli
+    p_arkcli = subparsers.add_parser('arkcli', help='Ark CLI 数据采集与报告')
+    p_arkcli.add_argument('action', choices=['collect', 'report'],
+                          help='collect=采集, report=报告')
+    p_arkcli.add_argument('--start', default=None,
+                          help='明细采集起始日期 YYYY-MM-DD')
+    p_arkcli.add_argument('--end', default=None,
+                          help='明细采集截止日期 YYYY-MM-DD')
+    p_arkcli.add_argument('--since', default=None,
+                          help='报告过滤起始日期 YYYY-MM-DD')
+
     args = parser.parse_args()
     if not args.command:
         parser.print_help()
@@ -196,6 +245,7 @@ def main():
         'collect': cmd_collect,
         'report': cmd_report,
         'config': cmd_config,
+        'arkcli': cmd_arkcli,
     }
     commands[args.command](args)
 

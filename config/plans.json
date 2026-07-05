@@ -1,16 +1,16 @@
 {
   "plans": {
-    "afp_medium": {
+    "afp_small": {
       "provider": "ark",
-      "name": "Agent Plan Medium",
+      "name": "火山引擎Agent Plan Small套餐",
       "price_cny": 200,
       "limits": {
-        "monthly_afp": 100000,
-        "weekly_afp": 35000,
-        "hourly_5_afp": 10000
+        "monthly_afp": 20000,
+        "weekly_afp": 7000,
+        "hourly_5_afp": 2000
       },
       "start_date": "2026-07-01",
-      "end_date": "2026-06-30",
+      "end_date": "2026-07-31",
       "auto_renew": true
     }
   },

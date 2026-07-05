@@ -50,16 +50,17 @@ def _summarize_by_agent(cursor, since=None, agent=None):
     return cursor.fetchall()
 
 
-def _summarize_by_date(cursor, days=7, agent=None):
-    """按日期汇总（默认近 N 天）"""
-    since = (datetime.now() - timedelta(days=days)) \
-        .strftime('%Y-%m-%d %H:%M:%S')
+def _summarize_by_date(cursor, since=None, agent=None):
+    """按日期汇总，支持 since 过滤"""
     query = '''SELECT SUBSTR(dt, 1, 10) as date,
                COUNT(*) as calls,
                SUM(COALESCE(cost_yuan, 0)) as cost,
                SUM(COALESCE(afp_consumed, 0)) as afp
-               FROM api_calls WHERE dt >= ?'''
-    params = [since]
+               FROM api_calls WHERE 1=1'''
+    params = []
+    if since:
+        query += ' AND dt >= ?'
+        params.append(since)
     if agent and agent != '*':
         query += ' AND agent = ?'
         params.append(agent)
@@ -144,8 +145,14 @@ def _get_pricing_display(model_id, models_config):
     billing = info.get('billing_type', '')
     pricing = info.get('pricing', {})
     if billing == 'pay_as_you_go':
-        inp = pricing.get('input_per_mtok', 0)
-        out = pricing.get('output_per_mtok', 0)
+        tiers = pricing.get('context_tiers', {})
+        if tiers:
+            first_tier = list(tiers.values())[0]
+            inp = first_tier.get('input_per_mtok', 0)
+            out = first_tier.get('output_per_mtok', 0)
+        else:
+            inp = pricing.get('input_per_mtok', 0)
+            out = pricing.get('output_per_mtok', 0)
         cache = pricing.get('cache_read_per_mtok', 0)
         parts = [f"入{inp}", f"出{out}"]
         if cache:
@@ -268,7 +275,7 @@ def _build_terminal(db_path, cursor, models_config, plans_config,
     lines.append("📈 每日趋势")
     lines.append(f"  {'日期':<12} {'调用':>6} {'费用(¥)':>10} {'AFP':>8}")
     lines.append("  " + "-" * 40)
-    for row in _summarize_by_date(cursor, agent=agent):
+    for row in _summarize_by_date(cursor, since, agent):
         date, calls, cost, afp = row
         cost_str = _fmt_cost(cost) if cost else "¥0.00"
         afp_str = _fmt_afp(afp) if afp else "0"
@@ -353,7 +360,7 @@ def _build_markdown(db_path, cursor, models_config, plans_config, since,
     lines.append("## 📈 每日趋势\n")
     lines.append("| 日期 | 调用 | 费用(¥) | AFP |")
     lines.append("|------|------|---------|-----|")
-    for row in _summarize_by_date(cursor, agent=agent):
+    for row in _summarize_by_date(cursor, since, agent):
         date, calls, cost, afp = row
         cost_str = _fmt_cost(cost) if cost else "¥0.00"
         afp_str = _fmt_afp(afp) if afp else "0"
