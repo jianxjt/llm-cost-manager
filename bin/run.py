@@ -102,8 +102,47 @@ def cmd_config(args):
             for lk, lv in limits.items():
                 print(f"    {lk}: {lv}")
     elif args.action == 'set-plan':
-        print("📝 套餐配置编辑:")
-        print(f"   请编辑文件: {PLANS_CONFIG}")
+        plans = _load_json(PLANS_CONFIG)
+        if 'plans' not in plans:
+            plans['plans'] = {}
+        plan_key = 'afp_medium'
+        if plan_key not in plans['plans']:
+            plans['plans'][plan_key] = {
+                'provider': 'ark',
+                'name': 'Agent Plan',
+                'price_cny': 0,
+                'limits': {},
+                'start_date': '',
+                'end_date': '',
+                'auto_renew': True
+            }
+        plan = plans['plans'][plan_key]
+        if args.name:
+            plan['name'] = args.name
+        if args.monthly is not None:
+            plan['limits']['monthly_afp'] = args.monthly
+        if args.weekly is not None:
+            plan['limits']['weekly_afp'] = args.weekly
+        if args.hourly5 is not None:
+            plan['limits']['hourly_5_afp'] = args.hourly5
+        if args.price is not None:
+            plan['price_cny'] = args.price
+        if args.start_date:
+            plan['start_date'] = args.start_date
+        if args.end_date:
+            plan['end_date'] = args.end_date
+        if 'alert_thresholds' not in plans:
+            plans['alert_thresholds'] = {
+                'warning_pct': 80,
+                'critical_pct': 90
+            }
+        with open(PLANS_CONFIG, 'w', encoding='utf-8') as f:
+            json.dump(plans, f, ensure_ascii=False, indent=2)
+        print(f"✅ 套餐配置已更新: {PLANS_CONFIG}")
+        m = plan['limits'].get('monthly_afp', '?')
+        w = plan['limits'].get('weekly_afp', '?')
+        h = plan['limits'].get('hourly_5_afp', '?')
+        print(f"   {plan['name']}: 月{m}/周{w}/5h{h} AFP, ¥{plan['price_cny']}/月")
 
 
 def _load_json(path):
@@ -140,6 +179,13 @@ def main():
     p_config = subparsers.add_parser('config', help='配置管理')
     p_config.add_argument('action', choices=['show', 'set-plan'],
                           help='配置操作')
+    p_config.add_argument('--name', default=None, help='套餐名称')
+    p_config.add_argument('--monthly', type=int, default=None, help='月度AFP额度')
+    p_config.add_argument('--weekly', type=int, default=None, help='周度AFP额度')
+    p_config.add_argument('--hourly5', type=int, default=None, help='5小时AFP额度')
+    p_config.add_argument('--price', type=int, default=None, help='月费(元)')
+    p_config.add_argument('--start-date', default=None, help='开始日期 YYYY-MM-DD')
+    p_config.add_argument('--end-date', default=None, help='结束日期 YYYY-MM-DD')
 
     args = parser.parse_args()
     if not args.command:

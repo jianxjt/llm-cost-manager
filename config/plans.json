@@ -9,7 +9,7 @@
         "weekly_afp": 35000,
         "hourly_5_afp": 10000
       },
-      "start_date": "2026-06-01",
+      "start_date": "2026-07-01",
       "end_date": "2026-06-30",
       "auto_renew": true
     }

@@ -208,6 +208,7 @@ def _build_terminal(db_path, cursor, models_config, plans_config,
     # 总览
     lines.append("📊 总览")
     lines.append(f"  阿里百炼费用: {_fmt_cost(total_cost)}（按量后付费）")
+    lines.append(f"  AFP总消耗:     {_fmt_afp(total_afp)} 点")
     lines.append(f"  总调用次数:   {total_calls or 0} 次")
     lines.append(f"  总Token数:    {_fmt_tokens(total_tokens)}")
     if unknown_count:
@@ -290,11 +291,31 @@ def _build_markdown(db_path, cursor, models_config, plans_config, since,
     lines.append(f"| 指标 | 值 |")
     lines.append(f"|------|-----|")
     lines.append(f"| 按量费用 | {_fmt_cost(total_cost)} |")
+    lines.append(f"| AFP消耗 | {_fmt_afp(total_afp)} 点 |")
     lines.append(f"| 总调用次数 | {total_calls or 0} |")
     lines.append(f"| 总Token | {_fmt_tokens(total_tokens)} |")
     if unknown_count:
         lines.append(f"| 未识别模型 | {unknown_count} 个 |")
     lines.append("")
+
+    # AFP 套餐状态
+    plan_status = check_plan_limits(db_path, plans_config)
+    has_afp = any(pv for pv in plan_status.values())
+    if has_afp:
+        lines.append("## 🔋 AFP 套餐状态\n")
+        lines.append("| 周期 | 已消耗 | 额度 | 消耗占比 |")
+        lines.append("|------|--------|------|---------|")
+        for pk, pv in plan_status.items():
+            if 'monthly' in pv:
+                m = pv['monthly']
+                lines.append(f"| 月度 | {_fmt_afp(m['consumed'])} | {_fmt_afp(m['limit'])} | {m['pct']}% |")
+            if 'weekly' in pv:
+                w = pv['weekly']
+                lines.append(f"| 周度 | {_fmt_afp(w['consumed'])} | {_fmt_afp(w['limit'])} | {w['pct']}% |")
+            if 'hourly_5' in pv:
+                h = pv['hourly_5']
+                lines.append(f"| 5小时 | {_fmt_afp(h['consumed'])} | {_fmt_afp(h['limit'])} | {h['pct']}% |")
+        lines.append("")
 
     # 按模型（按供应商分组）
     lines.append("## 💰 按供应商/模型汇总\n")

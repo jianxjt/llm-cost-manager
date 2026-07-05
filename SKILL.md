@@ -48,6 +48,8 @@ python bin/run.py report --format markdown   # 输出 Markdown 文件
 
 # 配置管理
 python bin/run.py config show          # 查看当前模型和套餐配置
+python bin/run.py config set-plan      # 更新AFP套餐配置（支持命令行参数）
+                                      # 示例: --monthly 100000 --weekly 35000 --hourly5 10000 --price 200 --name "Agent Plan Medium"
 ```
 
 ### 交互模式
@@ -61,6 +63,25 @@ python bin/run.py config show          # 查看当前模型和套餐配置
 - **openclaw.models.json** — 模型定义、定价、别名映射（核心配置，参考示例见文末）
 - **pricing.json** — 各供应商官方定价快照（参考源）
 - **plans.json** — 用户套餐配置（AFP 限额等）
+
+## 🔧 AFP 套餐配置
+
+**生成报告前，Agent 必须先检查 plans.json 中的套餐配置是否有效：**
+
+1. 读取 `config/plans.json`，检查 `start_date`/`end_date` 是否覆盖当前月份，`monthly_afp` 是否大于 0
+2. 如果套餐已过期、缺失或用户首次使用，**主动询问用户**：
+   - "你的火山引擎 Agent Plan 套餐是什么档位？月度 AFP 额度是多少？"
+   - 如用户知道周度和5小时额度，一并询问；不知道则只更新月度
+3. 获取用户确认后，执行更新：
+   ```bash
+   python bin/run.py config set-plan --monthly <额度> --weekly <额度> --hourly5 <额度> --price <月费> --name "<套餐名>" --start-date YYYY-MM-01 --end-date YYYY-MM-30
+   ```
+4. 更新完成后再执行 `collect` 和 `report`
+
+**常见火山引擎 Agent Plan 套餐参考（以用户实际购买为准）：**
+- Starter: 约20000 AFP/月
+- Medium: 约100000 AFP/月
+- Pro: 约500000 AFP/月
 
 ## 💰 计费模式
 
