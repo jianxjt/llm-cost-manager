@@ -1,5 +1,6 @@
 # LLM Cost Manager
 
+**Name**: llm-cost-manager
 **Version**: 1.0.1
 **Author**: 天地红尘
 **License**: MIT
