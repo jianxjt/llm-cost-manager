@@ -1,7 +1,7 @@
 ---
 name: llm-cost-manager
-version: 1.0.1
-description: "一站式大模型调用成本管理工具，直连 OpenClaw 本地缓存，自主采集、自主计算、自主分析。支持按量后付费/AFP套餐/免费三种计费模式，覆盖阿里百炼、火山方舟、本地模型，提供增量采集、终端表格与Markdown报告输出。"
+version: 1.1.0
+description: "一站式大模型调用成本管理工具，直连 OpenClaw 本地缓存，自主采集、自主计算、自主分析。支持按量后付费/AFP套餐/免费三种计费模式，覆盖阿里百炼、火山方舟、本地模型，提供增量采集、终端表格与Markdown报告输出。v1.1.0新增arkcli集成、分段系数自学习、百炼真实比例和Token效率分析。"
 metadata:
   requires:
     bins: ["python3"]
@@ -45,6 +45,11 @@ python bin/run.py report               # 默认：过去7天，终端输出
 python bin/run.py report --agent main  # 只看 main agent
 python bin/run.py report --since 2026-06-01  # 指定起始日期
 python bin/run.py report --format markdown   # 输出 Markdown 文件
+python bin/run.py report --with-arkcli       # 附加 arkcli AFP 实时数据+分段系数分析
+
+# arkcli 数据采集
+python bin/run.py arkcli collect       # 采集套餐AFP用量+分模型明细
+python bin/run.py arkcli report        # 查看 arkcli 数据报告
 
 # 配置管理
 python bin/run.py config show          # 查看当前模型和套餐配置
@@ -63,6 +68,7 @@ python bin/run.py config set-plan      # 更新AFP套餐配置（支持命令行
 - **openclaw.models.json** — 模型定义、定价、别名映射（核心配置，参考示例见文末）
 - **pricing.json** — 各供应商官方定价快照（参考源）
 - **plans.json** — 用户套餐配置（AFP 限额等）
+- **tier_weights.json** — 分段系数自学习数据（自动生成，含 k 值和反算记录）
 
 ## 🔧 AFP 计费与套餐管理
 
@@ -97,6 +103,25 @@ AFP（Agent Function Point）是火山引擎 Agent Plan 套餐的计费单位。
   - 消耗占比 ≥ critical_pct：紧急提醒"AFP额度即将耗尽（剩余 X%），建议升级套餐或减少调用"
 - 即使报告为 Markdown 格式，Agent 也应主动读取套餐状态并向用户汇报
 
+### AFP 估算与分段系数自学习
+
+arkcli 只返回 total_tokens（不分 input/output），工具通过以下机制实现高精度估算：
+
+1. **真实比例获取**：从百炼/modelstudio 数据库提取真实 input/output 比例（实测 ~99.4%:0.6%），替代 80/20 假设
+2. **分段系数 k 反算**：用 arkcli 套餐层面真实 AFP 反算有效分段系数 `k = (real_afp - B) / A`
+   - k=1.0 表示全部在基础档（32k-128k）
+   - k>1 表示部分调用上下文超过 128k（加价档）
+   - k<1 表示部分调用在折扣档（≤32k）
+3. **k 值自动保存**：反算结果存入 `config/tier_weights.json`，下次估算自动使用
+4. **Token 效率分析**：报告输出 output/total 占比，识别大模型生成价值偏低问题
+
+实测估算误差 < 0.1%（估算 11,306.4 vs 真实 11,306.6 AFP）。
+
+**使用 `--with-arkcli` 参数**会在报告中附加：
+- arkcli 分模型用量与 AFP 汇总
+- Token 效率分析（input/output 比例 + 优化建议）
+- 上下文分段系数分析（k 值 + 权重分布 + 优化建议）
+
 ## 💰 计费模式
 
 | 模式 | 适用供应商 | 说明 |
@@ -111,8 +136,8 @@ SQLite 数据库位于 `data/history.db`，包含以下表：
 
 - `api_calls` — 每次 API 调用记录
 - `collect_cursor` — 采集游标（增量采集）
-- `daily_summary` — 每日汇总（预留）
-- `plan_snapshots` — 套餐快照（预留）
+- `arkcli_plan_usage` — arkcli 套餐级 AFP 用量快照
+- `arkcli_model_daily` — arkcli 分模型每日 token 用量（含 AFP 消耗估算）
 - `schema_version` — 数据格式版本
 
 ## 📤 输出格式
@@ -128,7 +153,10 @@ SQLite 数据库位于 `data/history.db`，包含以下表：
 - 后续运行默认增量采集，只处理新数据
 - 所有数据处理在本地完成，无外部网络请求
 - 时间戳使用系统本地时间
+- arkcli 需先执行 `arkcli auth login` 登录授权
+- VP（Agent Plan）模型 token=0 是已知问题，AFP 估算通过 arkcli 明细数据替代
 
 ## 📌 版本历史
 
 - V1.0.1：provider-aware 架构，支持按量/AFP/免费三模式计费，终端/Markdown 报告，增量采集，跨平台路径兼容
+- V1.1.0：arkcli 集成（套餐AFP采集+分模型明细），分段系数自学习（k值反算误差<0.1%），百炼真实input/output比例（~99.4%），Token效率分析，MODEL_MAPPING模型名映射，VP模型token=0修复
