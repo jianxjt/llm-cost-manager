@@ -28,6 +28,7 @@ MODEL_MAPPING = {
     "doubao-seed-2-0-mini": "volcengine-agent-plan/doubao-seed-2.0-mini",
     "doubao-seed-2-0-pro": "volcengine-agent-plan/doubao-seed-2.0-pro",
     "doubao-seed-2-0-code": "volcengine-agent-plan/doubao-seed-2.0-code",
+    "doubao-seed-2-0-code-preview": "volcengine-agent-plan/doubao-seed-2.0-code",
     "doubao-seed-2-0-lite": "volcengine-agent-plan/doubao-seed-2.0-lite",
     "kimi-k2.6": "volcengine-agent-plan/kimi-k2.6",
     "kimi-k2.7-code": "volcengine-agent-plan/kimi-k2.7-code",
@@ -238,7 +239,7 @@ def collect_all(start_date=None, end_date=None, db_path=None):
 
     if start_date is None:
         now = datetime.now(tz=CST)
-        start_date = now.strftime("%Y-%m-01")
+        start_date = (now - timedelta(days=30)).strftime("%Y-%m-%d")
 
     results = {}
 
@@ -433,62 +434,76 @@ def format_arkcli_report(since=None, db_path=None):
     except sqlite3.OperationalError:
         lines.append("⚠️ 无套餐用量数据，请先执行: `python3 bin/run.py arkcli collect`\n")
 
-    # === 分模型每日 token ===
+    # === 分模型每日 token（显示全部已采集数据，不受 since 过滤）===
     try:
-        since_date = since[:10] if since else None
-
         query = '''
-            SELECT date, model_id, model_name, SUM(tokens) as total_tokens
+            SELECT date, model_id, model_name,
+                   SUM(tokens) as total_tokens,
+                   SUM(COALESCE(afp_consumed, 0)) as total_afp
             FROM arkcli_model_daily
+            GROUP BY date, model_id ORDER BY date DESC, total_tokens DESC
         '''
-        params = []
-        if since_date:
-            query += " WHERE date >= ?"
-            params.append(since_date)
 
-        query += " GROUP BY date, model_id ORDER BY date DESC, total_tokens DESC"
-
-        c.execute(query, params)
+        c.execute(query)
         model_rows = c.fetchall()
 
         if model_rows:
+            has_afp = any(row[4] and row[4] > 0 for row in model_rows)
             lines.append("### 分模型每日 Token 用量（arkcli）\n")
-            lines.append("| 日期 | 模型 | Token 总量 |")
-            lines.append("|------|------|-----------|")
+            if has_afp:
+                lines.append("| 日期 | 模型 | Token 总量 | AFP 消耗 |")
+                lines.append("|------|------|-----------|----------|")
+            else:
+                lines.append("| 日期 | 模型 | Token 总量 |")
+                lines.append("|------|------|-----------|")
 
             for row in model_rows:
                 date_str = row[0]
                 model_id = row[1] or row[2]
                 tokens = row[3]
-                lines.append(f"| {date_str} | {model_id} | {tokens:,} |")
+                afp_val = row[4] or 0
+                if has_afp:
+                    lines.append(f"| {date_str} | {model_id} | {tokens:,} | {afp_val:,.1f} |")
+                else:
+                    lines.append(f"| {date_str} | {model_id} | {tokens:,} |")
 
             lines.append("")
 
-            # 模型汇总
+            # 模型汇总（显示全部已采集数据，不受 since 过滤）
             summary_query = '''
-                SELECT model_id, model_name, SUM(tokens) as total_tokens
+                SELECT model_id, model_name,
+                       SUM(tokens) as total_tokens,
+                       SUM(COALESCE(afp_consumed, 0)) as total_afp
                 FROM arkcli_model_daily
+                GROUP BY model_id ORDER BY total_tokens DESC
             '''
-            summary_params = []
-            if since_date:
-                summary_query += " WHERE date >= ?"
-                summary_params.append(since_date)
-            summary_query += " GROUP BY model_id ORDER BY total_tokens DESC"
 
-            c.execute(summary_query, summary_params)
+            c.execute(summary_query)
             summary_rows = c.fetchall()
 
             if summary_rows:
                 lines.append("### 模型用量汇总\n")
-                lines.append("| 模型 | Token 总量 | 占比 |")
-                lines.append("|------|-----------|------|")
                 grand_total = sum(r[2] for r in summary_rows)
-                for row in summary_rows:
-                    model_id = row[0] or row[1]
-                    tokens = row[2]
-                    pct = tokens / grand_total * 100 if grand_total else 0
-                    lines.append(f"| {model_id} | {tokens:,} | {pct:.1f}% |")
-                lines.append(f"| **合计** | **{grand_total:,}** | **100%** |")
+                grand_afp = sum(r[3] or 0 for r in summary_rows)
+                if has_afp:
+                    lines.append("| 模型 | Token 总量 | 占比 | AFP 消耗 |")
+                    lines.append("|------|-----------|------|----------|")
+                    for row in summary_rows:
+                        model_id = row[0] or row[1]
+                        tokens = row[2]
+                        afp_val = row[3] or 0
+                        pct = tokens / grand_total * 100 if grand_total else 0
+                        lines.append(f"| {model_id} | {tokens:,} | {pct:.1f}% | {afp_val:,.1f} |")
+                    lines.append(f"| **合计** | **{grand_total:,}** | **100%** | **{grand_afp:,.1f}** |")
+                else:
+                    lines.append("| 模型 | Token 总量 | 占比 |")
+                    lines.append("|------|-----------|------|")
+                    for row in summary_rows:
+                        model_id = row[0] or row[1]
+                        tokens = row[2]
+                        pct = tokens / grand_total * 100 if grand_total else 0
+                        lines.append(f"| {model_id} | {tokens:,} | {pct:.1f}% |")
+                    lines.append(f"| **合计** | **{grand_total:,}** | **100%** |")
                 lines.append("")
 
     except sqlite3.OperationalError:

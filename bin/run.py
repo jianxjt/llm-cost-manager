@@ -63,6 +63,17 @@ def cmd_report(args):
     if calc_result.get('calculated'):
         print(f"💰 已计算 {calc_result['calculated']} 条新记录的费用")
 
+    # 从 arkcli 数据计算 AFP 消耗（解决 VP 模型 token=0 问题）
+    from core.calculator import calculate_afp_from_arkcli
+    arkcli_calc = calculate_afp_from_arkcli(DB_PATH, MODELS_CONFIG)
+    if arkcli_calc.get('calculated'):
+        k_used = arkcli_calc.get('k', 1.0)
+        io_r = arkcli_calc.get('input_ratio', 0.8)
+        io_src = "百炼真实数据" if abs(io_r - 0.8) > 0.01 else "默认80/20"
+        print(f"📊 已从 arkcli 数据计算 {arkcli_calc['calculated']} 条 AFP 消耗"
+              f"（input/output = {io_r:.1%}/{1-io_r:.1%} [{io_src}]"
+              f"，k={k_used:.4f}）")
+
     since = args.since
     if not since:
         from datetime import datetime, timedelta
@@ -79,6 +90,70 @@ def cmd_report(args):
     if getattr(args, 'with_arkcli', False):
         from core.arkcli_provider import format_arkcli_report
         report += "\n\n" + format_arkcli_report(since=since, db_path=DB_PATH)
+
+        # 从真实AFP反算有效系数k并保存
+        from core.calculator import (back_calculate_k, save_tier_k,
+                                     _get_arkcli_plan_usage)
+        arkcli_plan = _get_arkcli_plan_usage(DB_PATH)
+        if 'monthly' in arkcli_plan and arkcli_plan['monthly']['used'] > 0:
+            real_afp = arkcli_plan['monthly']['used']
+            k_result = back_calculate_k(DB_PATH, MODELS_CONFIG, real_afp)
+            if 'error' not in k_result:
+                k_val = k_result['k']
+                est_afp = k_val * k_result['A'] + k_result['B']
+                tier_weights_path = os.path.join(CONFIG_DIR, 'tier_weights.json')
+                save_tier_k(k_val, real_afp, est_afp, tier_weights_path)
+
+                # Token效率分析
+                io_r = arkcli_calc.get('input_ratio', 0.8)
+                out_r = 1 - io_r
+                io_src = "百炼真实数据" if abs(io_r - 0.8) > 0.01 else "默认80/20"
+                report += "\n### 📊 Token效率分析\n\n"
+                report += (f"输入/输出比: **{io_r:.1%} / {out_r:.1%}**"
+                           f"（{io_src}）\n\n")
+                if out_r < 0.02:
+                    report += (f"输出token占比仅 **{out_r:.1%}**，"
+                               f"大模型生成价值偏低。\n"
+                               f"💡 大量token用于上下文输入，实际产出少。建议：\n"
+                               f"   - 定期清理/摘要压缩长对话历史\n"
+                               f"   - 简单任务用短上下文模型\n"
+                               f"   - 关注k值趋势判断上下文增长\n\n")
+                elif out_r < 0.05:
+                    report += (f"输出token占比 **{out_r:.1%}**，"
+                               f"生成效率偏低。\n\n")
+                else:
+                    report += (f"输出token占比 **{out_r:.1%}**，"
+                               f"生成效率正常。\n\n")
+
+                # 显示k分析
+                report += "\n### 📊 上下文分段系数分析（k值反算）\n\n"
+                report += f"有效系数 k: **{k_val:.4f}**（基础档=1.0）\n\n"
+                if k_val > 1.0:
+                    w3 = k_val - 1
+                    w2 = 2 - k_val
+                    report += (f"估算权重分布: ≤32k: 0% | "
+                               f"32k-128k: {w2*100:.1f}% | "
+                               f">128k: {w3*100:.1f}%\n\n")
+                    if k_val > 1.2:
+                        report += (f"💡 **建议**: 约{w3*100:.0f}%的调用"
+                                   f"上下文超过128k token，输入较长。\n"
+                                   f"   减少上下文长度（如清理历史对话、"
+                                   f"使用摘要压缩）可降低AFP消耗。\n\n")
+                    elif k_val > 1.0:
+                        report += ("💡 部分调用上下文超过128k，"
+                                   "可关注输入长度优化。\n\n")
+                elif k_val < 1.0:
+                    w1 = (1 - k_val) / 0.33
+                    w2 = 1 - w1
+                    report += (f"估算权重分布: ≤32k: {w1*100:.1f}% | "
+                               f"32k-128k: {w2*100:.1f}% | "
+                               f">128k: 0%\n\n")
+                    report += ("💡 大部分调用在折扣档（≤32k），"
+                               "AFP利用率良好。\n\n")
+                else:
+                    report += ("估算权重分布: 全部在32k-128k标准档\n\n")
+
+                report += (f"> k值已自动保存，下次估算将使用 k={k_val:.4f}\n")
 
     if args.format == 'markdown':
         out_path = os.path.join(DATA_DIR, 'report.md')
@@ -170,6 +245,11 @@ def cmd_arkcli(args):
 
         if details_status.startswith('ok'):
             print(f"✅ 分模型明细采集成功 ({details_status})")
+            # 采集后自动计算 AFP 消耗
+            from core.calculator import calculate_afp_from_arkcli
+            arkcli_calc = calculate_afp_from_arkcli(DB_PATH, MODELS_CONFIG)
+            if arkcli_calc.get('calculated'):
+                print(f"📊 已计算 {arkcli_calc['calculated']} 条 AFP 消耗")
         else:
             print(f"❌ 明细采集失败: {details_status}")
 

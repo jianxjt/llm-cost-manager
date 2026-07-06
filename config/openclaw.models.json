@@ -233,7 +233,7 @@
           ">128k":    {"input_coef": 5.0,   "output_coef": 2.5}
         }
       },
-      "aliases": []
+      "aliases": ["doubao-seed-2-0-code-preview"]
     },
     "doubao-seed-2-0-pro-dated": {
       "display_name": "豆包 Seed 2.0 Pro (260215)",

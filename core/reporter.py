@@ -107,6 +107,24 @@ def _fmt_cost(v):
     return f"¥{v:.2f}" if v else "¥0.00"
 
 
+def _get_arkcli_monthly_afp(db_path):
+    """从 arkcli_plan_usage 表获取月度 AFP 已用量（套餐层面真实数据）"""
+    conn = sqlite3.connect(db_path)
+    c = conn.cursor()
+    try:
+        c.execute('''
+            SELECT used FROM arkcli_plan_usage
+            WHERE period_label = 'monthly'
+              AND collected_at = (SELECT MAX(collected_at) FROM arkcli_plan_usage)
+        ''')
+        row = c.fetchone()
+        conn.close()
+        return row[0] if row else None
+    except sqlite3.OperationalError:
+        conn.close()
+        return None
+
+
 def _top_model_name(model_id, provider, is_unknown, models_config):
     """生成模型显示名，格式: provider/model_name
     model_id 存储格式为 "provider/config_key"，从中解析出 config_key 查配置。
@@ -215,7 +233,11 @@ def _build_terminal(db_path, cursor, models_config, plans_config,
     # 总览
     lines.append("📊 总览")
     lines.append(f"  阿里百炼费用: {_fmt_cost(total_cost)}（按量后付费）")
-    lines.append(f"  AFP总消耗:     {_fmt_afp(total_afp)} 点")
+    arkcli_afp = _get_arkcli_monthly_afp(db_path)
+    if arkcli_afp and arkcli_afp > 0:
+        lines.append(f"  AFP总消耗:     {_fmt_afp(arkcli_afp)} 点（arkcli 实时）")
+    else:
+        lines.append(f"  AFP总消耗:     {_fmt_afp(total_afp)} 点")
     lines.append(f"  总调用次数:   {total_calls or 0} 次")
     lines.append(f"  总Token数:    {_fmt_tokens(total_tokens)}")
     if unknown_count:
@@ -298,7 +320,14 @@ def _build_markdown(db_path, cursor, models_config, plans_config, since,
     lines.append(f"| 指标 | 值 |")
     lines.append(f"|------|-----|")
     lines.append(f"| 按量费用 | {_fmt_cost(total_cost)} |")
-    lines.append(f"| AFP消耗 | {_fmt_afp(total_afp)} 点 |")
+    arkcli_afp_md = _get_arkcli_monthly_afp(db_path)
+    if arkcli_afp_md and arkcli_afp_md > 0:
+        afp_display_md = _fmt_afp(arkcli_afp_md)
+        afp_label_md = "（arkcli 实时）"
+    else:
+        afp_display_md = _fmt_afp(total_afp)
+        afp_label_md = ""
+    lines.append(f"| AFP消耗 | {afp_display_md} 点{afp_label_md} |")
     lines.append(f"| 总调用次数 | {total_calls or 0} |")
     lines.append(f"| 总Token | {_fmt_tokens(total_tokens)} |")
     if unknown_count:
